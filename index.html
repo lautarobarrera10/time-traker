@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub Tracker | Pro Multi-Cat</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger: #ef4444;
+            --accent: #f1f5f9;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+
+        .timer-display {
+            font-size: 3.5rem;
+            font-weight: 800;
+            text-align: center;
+            margin: 1rem 0;
+            color: var(--text-main);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -2px;
+        }
+
+        .form-group { margin-bottom: 1.2rem; }
+        label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.4rem; }
+
+        select, input {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: 0.95rem;
+            background: white;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .add-category-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn-add-cat {
+            width: auto;
+            padding: 0 1.2rem;
+            background: var(--accent);
+            color: var(--text-main);
+            font-size: 0.8rem;
+            border: 1px solid var(--border);
+        }
+        .btn-add-cat:hover { background: #e2e8f0; }
+
+        button {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-start { background-color: var(--primary); color: white; }
+        .btn-start:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+        .btn-stop { background-color: var(--danger); color: white; }
+
+        .summary-card {
+            background-color: var(--accent);
+            padding: 1rem;
+            border-radius: 12px;
+            margin: 1.5rem 0;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 4px 0;
+        }
+
+        .history-list { margin-top: 1.5rem; }
+        .log-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.8rem 0;
+            border-bottom: 1px solid var(--accent);
+        }
+        .log-info { display: flex; flex-direction: column; }
+        .log-date { font-size: 0.7rem; color: var(--text-muted); }
+        .log-hours { font-weight: 700; margin-right: 10px; color: var(--primary); }
+        .btn-delete {
+            background: none;
+            color: #94a3b8;
+            width: auto;
+            padding: 4px;
+            font-size: 0.7rem;
+        }
+        .btn-delete:hover { color: var(--danger); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="timer-display" id="display">00:00:00</div>
+
+    <div class="form-group">
+        <label>Seleccionar Categoría</label>
+        <select id="categorySelect"></select>
+    </div>
+
+    <div class="add-category-box">
+        <input type="text" id="newCatInput" placeholder="Nombre de categoría...">
+        <button type="button" class="btn-add-cat" id="addCatBtn">Añadir</button>
+    </div>
+
+    <button id="mainBtn" class="btn-start">Arrancar</button>
+
+    <div class="summary-card">
+        <label>Resumen Acumulado</label>
+        <div id="summaryContent"></div>
+    </div>
+
+    <div class="history-list">
+        <label>Registros recientes</label>
+        <div id="logList"></div>
+    </div>
+</div>
+
+<script>
+    const mainBtn = document.getElementById('mainBtn');
+    const display = document.getElementById('display');
+    const categorySelect = document.getElementById('categorySelect');
+    const newCatInput = document.getElementById('newCatInput');
+    const addCatBtn = document.getElementById('addCatBtn');
+    const logList = document.getElementById('logList');
+    const summaryContent = document.getElementById('summaryContent');
+
+    let startTime = null;
+    let isTracking = false;
+    let timerInterval = null;
+
+    window.onload = () => {
+        initCategories();
+        renderData();
+        const savedStart = localStorage.getItem('hubStart');
+        if (savedStart) {
+            startTime = parseInt(savedStart);
+            isTracking = true;
+            updateUI();
+            startTimer();
+        }
+    };
+
+    // --- LÓGICA DE CATEGORÍAS ---
+    function initCategories() {
+        let cats = JSON.parse(localStorage.getItem('hubCategories'));
+        if (!cats || cats.length === 0) {
+            cats = ["Trabajo en Hub Français"];
+            localStorage.setItem('hubCategories', JSON.stringify(cats));
+        }
+        updateCategorySelect(cats);
+    }
+
+    function handleAddCategory() {
+        const val = newCatInput.value.trim();
+        if (!val) return;
+        
+        let cats = JSON.parse(localStorage.getItem('hubCategories')) || [];
+        if (!cats.includes(val)) {
+            cats.push(val);
+            localStorage.setItem('hubCategories', JSON.stringify(cats));
+            updateCategorySelect(cats);
+            categorySelect.value = val; // Seleccionar la nueva automáticamente
+        }
+        newCatInput.value = '';
+    }
+
+    addCatBtn.addEventListener('click', handleAddCategory);
+    newCatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleAddCategory();
+    });
+
+    function updateCategorySelect(cats) {
+        categorySelect.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    // --- LÓGICA DEL TRACKER ---
+    mainBtn.addEventListener('click', () => {
+        if (!isTracking) {
+            startTime = Date.now();
+            localStorage.setItem('hubStart', startTime);
+            isTracking = true;
+            startTimer();
+        } else {
+            const diffHours = ((Date.now() - startTime) / 3600000).toFixed(2);
+            saveEntry(categorySelect.value, diffHours);
+            stopTracker();
+        }
+        updateUI();
+    });
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            const diff = Date.now() - startTime;
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            display.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }, 1000);
+    }
+
+    function stopTracker() {
+        clearInterval(timerInterval);
+        localStorage.removeItem('hubStart');
+        isTracking = false;
+        display.textContent = "00:00:00";
+    }
+
+    function updateUI() {
+        mainBtn.textContent = isTracking ? 'Parar' : 'Arrancar';
+        mainBtn.className = isTracking ? 'btn-stop' : 'btn-start';
+        categorySelect.disabled = isTracking;
+        newCatInput.disabled = isTracking;
+        addCatBtn.disabled = isTracking;
+    }
+
+    function saveEntry(cat, hrs) {
+        const logs = JSON.parse(localStorage.getItem('hubLogs') || '[]');
+        logs.unshift({
+            id: Date.now(),
+            cat,
+            hrs: parseFloat(hrs),
+            date: new Date().toLocaleDateString('es-ES', {day:'2-digit', month:'short', year:'2-digit'})
+        });
+        localStorage.setItem('hubLogs', JSON.stringify(logs));
+        renderData();
+    }
+
+    // Función global para que el onclick del HTML funcione
+    window.deleteEntry = function(id) {
+        let logs = JSON.parse(localStorage.getItem('hubLogs') || '[]');
+        logs = logs.filter(l => l.id !== id);
+        localStorage.setItem('hubLogs', JSON.stringify(logs));
+        renderData();
+    };
+
+    function renderData() {
+        const logs = JSON.parse(localStorage.getItem('hubLogs') || '[]');
+        
+        logList.innerHTML = logs.map(l => `
+            <div class="log-item">
+                <div class="log-info">
+                    <span style="font-weight:600; font-size:0.9rem">${l.cat}</span>
+                    <span class="log-date">${l.date}</span>
+                </div>
+                <div style="display:flex; align-items:center">
+                    <span class="log-hours">${l.hrs.toFixed(2)} hs</span>
+                    <button class="btn-delete" onclick="deleteEntry(${l.id})">✕</button>
+                </div>
+            </div>
+        `).join('');
+
+        const totals = logs.reduce((acc, curr) => {
+            acc[curr.cat] = (acc[curr.cat] || 0) + curr.hrs;
+            return acc;
+        }, {});
+
+        summaryContent.innerHTML = Object.entries(totals).length > 0 
+            ? Object.entries(totals).map(([cat, sum]) => `
+                <div class="summary-row">
+                    <span style="color:var(--text-muted)">${cat}</span>
+                    <span>${sum.toFixed(2)} hs</span>
+                </div>
+            `).join('')
+            : '<div style="font-size:0.8rem; color:var(--text-muted)">Sin datos registrados</div>';
+    }
+</script>
+
+</body>
+</html>
