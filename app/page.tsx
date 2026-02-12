@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AddCategoryForm } from "@/components/AddCategoryForm";
+import { AddTaskForm } from "@/components/AddTaskForm";
 import { CategorySelect } from "@/components/CategorySelect";
 import { PrimaryTimerButton } from "@/components/PrimaryTimerButton";
 import { RecentLogs } from "@/components/RecentLogs";
@@ -13,6 +14,7 @@ import { formatTime } from "@/lib/time";
 
 export default function HubTracker() {
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
   const {
     categories,
     currentCategory,
@@ -22,6 +24,8 @@ export default function HubTracker() {
     tasksByCategory,
     newCatInput,
     setNewCatInput,
+    newTaskInput,
+    setNewTaskInput,
     logs,
     isTracking,
     elapsedTime,
@@ -29,6 +33,7 @@ export default function HubTracker() {
     totalsByTask,
     handleToggleTimer,
     addCategory,
+    addTask,
     deleteEntry,
     editCategoryName,
   } = useHubTracker();
@@ -80,12 +85,40 @@ export default function HubTracker() {
             />
           )}
 
-          <TaskSelect
-            disabled={isTracking}
-            tasksForCategory={tasksForCategory}
-            value={currentTask}
-            onChange={setCurrentTask}
-          />
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <TaskSelect
+                disabled={isTracking}
+                tasksForCategory={tasksForCategory}
+                value={currentTask}
+                onChange={setCurrentTask}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddTask(true)}
+              disabled={isTracking || !selectValue}
+              className="shrink-0 px-4 py-3 bg-slate-100 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              + Tarea
+            </button>
+          </div>
+
+          {showAddTask && (
+            <AddTaskForm
+              disabled={isTracking}
+              value={newTaskInput}
+              onChange={setNewTaskInput}
+              onAdd={() => {
+                addTask(selectValue);
+                setShowAddTask(false);
+              }}
+              onCancel={() => {
+                setShowAddTask(false);
+                setNewTaskInput("");
+              }}
+            />
+          )}
         </div>
 
         {/* Botón Principal */}

@@ -5,6 +5,7 @@ import { msToHours } from "@/lib/time";
 import { useAlignedTimer } from "@/hooks/useAlignedTimer";
 
 const DEFAULT_CATEGORIES = ["Trabajo"];
+const DEFAULT_TASKS_BY_CATEGORY: Record<string, string[]> = { Trabajo: ["General"] };
 
 export function useHubTracker() {
   // Estado inicial fijo: igual en servidor y en el primer render del cliente (evita hydration mismatch).
@@ -12,7 +13,8 @@ export function useHubTracker() {
   const [currentCategory, setCurrentCategory] = useState("");
   const [currentTask, setCurrentTask] = useState("");
   const [newCatInput, setNewCatInput] = useState("");
-  const [tasksByCategory, setTasksByCategory] = useState<Record<string, string[]>>({});
+  const [newTaskInput, setNewTaskInput] = useState("");
+  const [tasksByCategory, setTasksByCategory] = useState<Record<string, string[]>>(DEFAULT_TASKS_BY_CATEGORY);
   const [logs, setLogs] = useState<Log[]>([]);
   const [isTracking, setIsTracking] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -134,6 +136,19 @@ export function useHubTracker() {
     setNewCatInput("");
   };
 
+  const addTask = (category: string) => {
+    const trimmed = newTaskInput.trim();
+    if (!trimmed) return;
+    const tasksForCat = tasksByCategory[category] ?? [];
+    if (!tasksForCat.includes(trimmed)) {
+      const updated = { ...tasksByCategory, [category]: [...tasksForCat, trimmed] };
+      setTasksByCategory(updated);
+      localStorage.setItem(STORAGE_KEYS.tasksByCategory, JSON.stringify(updated));
+    }
+    setCurrentTask(trimmed);
+    setNewTaskInput("");
+  };
+
   const deleteEntry = (id: number) => {
     const updated = logs.filter((l) => l.id !== id);
     setLogs(updated);
@@ -170,6 +185,8 @@ export function useHubTracker() {
     tasksByCategory,
     newCatInput,
     setNewCatInput,
+    newTaskInput,
+    setNewTaskInput,
     logs,
     setLogs,
     isTracking,
@@ -180,6 +197,7 @@ export function useHubTracker() {
     handleToggleTimer,
     stopTracker,
     addCategory,
+    addTask,
     deleteEntry,
     editCategoryName,
   } as const;
