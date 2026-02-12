@@ -1,10 +1,13 @@
-export function AddCategoryForm(props: {
+interface AddCategoryFormProps {
   disabled: boolean;
   value: string;
   onChange: (next: string) => void;
   onAdd: () => void;
-}) {
-  const { disabled, value, onChange, onAdd } = props;
+  onCancel?: () => void;
+}
+
+export function AddCategoryForm(props: AddCategoryFormProps) {
+  const { disabled, value, onChange, onAdd, onCancel } = props;
 
   return (
     <div className="flex gap-2">
@@ -23,6 +26,16 @@ export function AddCategoryForm(props: {
       >
         Añadir
       </button>
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={disabled}
+          className="px-4 py-2 text-slate-500 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors cursor-pointer"
+        >
+          Cancelar
+        </button>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AddCategoryForm } from "@/components/AddCategoryForm";
 import { CategorySelect } from "@/components/CategorySelect";
 import { PrimaryTimerButton } from "@/components/PrimaryTimerButton";
@@ -11,6 +12,7 @@ import { useHubTracker } from "@/hooks/useHubTracker";
 import { formatTime } from "@/lib/time";
 
 export default function HubTracker() {
+  const [showAddCategory, setShowAddCategory] = useState(false);
   const {
     categories,
     currentCategory,
@@ -43,25 +45,46 @@ export default function HubTracker() {
 
         {/* Formulario */}
         <div className="space-y-4 mb-6">
-          <CategorySelect
-            disabled={isTracking}
-            value={selectValue}
-            categories={categories}
-            onChange={setCurrentCategory}
-          />
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <CategorySelect
+                disabled={isTracking}
+                value={selectValue}
+                categories={categories}
+                onChange={setCurrentCategory}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddCategory(true)}
+              disabled={isTracking}
+              className="shrink-0 px-4 py-3 bg-slate-100 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              + Categoría
+            </button>
+          </div>
+
+          {showAddCategory && (
+            <AddCategoryForm
+              disabled={isTracking}
+              value={newCatInput}
+              onChange={setNewCatInput}
+              onAdd={() => {
+                addCategory();
+                setShowAddCategory(false);
+              }}
+              onCancel={() => {
+                setShowAddCategory(false);
+                setNewCatInput("");
+              }}
+            />
+          )}
 
           <TaskSelect
             disabled={isTracking}
             tasksForCategory={tasksForCategory}
             value={currentTask}
             onChange={setCurrentTask}
-          />
-
-          <AddCategoryForm
-            disabled={isTracking}
-            value={newCatInput}
-            onChange={setNewCatInput}
-            onAdd={addCategory}
           />
         </div>
 
