@@ -84,7 +84,7 @@ export function useHubTracker() {
   };
 
   const saveEntry = (cat: string, task: string, hrs: number) => {
-    const taskTrimmed = task.trim() || "Sin tarea";
+    const taskTrimmed = task.trim() || (tasksByCategory[cat]?.[0]) || "Sin tarea";
     const newLog: Log = {
       id: Date.now(),
       cat,
@@ -110,7 +110,7 @@ export function useHubTracker() {
     if (!isTracking) {
       const now = Date.now();
       const cat = currentCategory || categories[0];
-      const task = currentTask.trim() || "Sin tarea";
+      const task = currentTask.trim() || (tasksByCategory[cat]?.[0]) || "Sin tarea";
       setStartTime(now);
       setIsTracking(true);
       setCurrentCategory(cat);
@@ -120,7 +120,7 @@ export function useHubTracker() {
       localStorage.setItem(STORAGE_KEYS.currentTask, task);
     } else {
       const diffHours = msToHours(elapsedTime);
-      const task = currentTask.trim() || "Sin tarea";
+      const task = currentTask.trim() || (tasksByCategory[currentCategory]?.[0]) || "Sin tarea";
       saveEntry(currentCategory, task, diffHours);
       stopTracker();
     }
