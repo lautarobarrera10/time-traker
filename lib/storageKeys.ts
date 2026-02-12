@@ -3,5 +3,7 @@ export const STORAGE_KEYS = {
   logs: "hubLogs",
   start: "hubStart",
   currentCat: "hubCurrentCat",
+  tasksByCategory: "hubTasksByCategory",
+  currentTask: "hubCurrentTask",
 } as const;
 

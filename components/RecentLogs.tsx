@@ -11,6 +11,7 @@ export function RecentLogs(props: { logs: Log[]; onDelete: (id: number) => void 
           <div key={log.id} className="flex justify-between items-center py-4">
             <div className="flex flex-col">
               <span className="text-sm font-bold text-slate-900">{log.cat}</span>
+              <span className="text-xs text-slate-600">{log.task}</span>
               <span className="text-[0.7rem] font-medium text-slate-500">{log.date}</span>
             </div>
             <div className="flex items-center gap-4">
