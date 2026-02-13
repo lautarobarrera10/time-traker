@@ -8,11 +8,17 @@ export async function GET() {
 
   const logs = await prisma.timeLog.findMany({
     where: { userId },
-    include: {
+    select: {
+      id: true,
+      hours: true,
+      date: true,
+      categoryId: true,
+      taskId: true,
       category: { select: { name: true } },
       task: { select: { name: true } },
     },
     orderBy: { id: "desc" },
+    take: 50,
   });
 
   return NextResponse.json(logs);
