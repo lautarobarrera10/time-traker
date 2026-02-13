@@ -1,12 +1,14 @@
+import type { TaskItem } from "@/lib/types";
+
 export function TaskSelect(props: {
   disabled: boolean;
-  tasksForCategory: string[];
-  value: string;
-  onChange: (next: string) => void;
+  tasksForCategory: TaskItem[];
+  value: number | null;
+  onChange: (id: number) => void;
 }) {
   const { disabled, tasksForCategory, value, onChange } = props;
   const tasks = tasksForCategory ?? [];
-  const displayValue = tasks.length > 0 ? (value || tasks[0]) : "";
+  const displayValue = tasks.length > 0 ? (value ?? tasks[0].id) : "";
 
   return (
     <div>
@@ -16,13 +18,13 @@ export function TaskSelect(props: {
       <select
         disabled={disabled}
         value={displayValue}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(parseInt(e.target.value))}
         className="w-full p-3 rounded-xl border border-slate-200 text-sm text-black outline-none bg-white disabled:bg-slate-50 cursor-pointer"
       >
         {tasks.length > 0 ? (
           tasks.map((t) => (
-            <option key={t} value={t}>
-              {t}
+            <option key={t.id} value={t.id}>
+              {t.name}
             </option>
           ))
         ) : (

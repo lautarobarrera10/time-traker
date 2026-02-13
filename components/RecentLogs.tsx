@@ -1,6 +1,6 @@
-import type { Log } from "@/lib/types";
+import type { TimeLogEntry } from "@/lib/types";
 
-export function RecentLogs(props: { logs: Log[]; onDelete: (id: number) => void }) {
+export function RecentLogs(props: { logs: TimeLogEntry[]; onDelete: (id: number) => void }) {
   const { logs, onDelete } = props;
 
   return (
@@ -10,12 +10,14 @@ export function RecentLogs(props: { logs: Log[]; onDelete: (id: number) => void 
         {logs.map((log) => (
           <div key={log.id} className="flex justify-between items-center py-4">
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-slate-900">{log.cat}</span>
-              <span className="text-xs text-slate-600">{log.task}</span>
-              <span className="text-[0.7rem] font-medium text-slate-500">{log.date}</span>
+              <span className="text-sm font-bold text-slate-900">{log.category.name}</span>
+              <span className="text-xs text-slate-600">{log.task.name}</span>
+              <span className="text-[0.7rem] font-medium text-slate-500">
+                {new Date(log.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}
+              </span>
             </div>
             <div className="flex items-center gap-4">
-              <span className="font-extrabold text-blue-700 text-sm">{log.hrs.toFixed(2)} hs</span>
+              <span className="font-extrabold text-blue-700 text-sm">{log.hours.toFixed(2)} hs</span>
               <button
                 onClick={() => onDelete(log.id)}
                 className="text-slate-400 hover:text-red-500 transition-colors p-1 cursor-pointer"
@@ -29,4 +31,3 @@ export function RecentLogs(props: { logs: Log[]; onDelete: (id: number) => void 
     </div>
   );
 }
-

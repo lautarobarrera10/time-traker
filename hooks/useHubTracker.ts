@@ -1,66 +1,54 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Log } from "@/lib/types";
-import { STORAGE_KEYS } from "@/lib/storageKeys";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CategoryWithTasks, TimeLogEntry } from "@/lib/types";
 import { msToHours } from "@/lib/time";
 import { useAlignedTimer } from "@/hooks/useAlignedTimer";
 
-const DEFAULT_CATEGORIES = ["Trabajo"];
-const DEFAULT_TASKS_BY_CATEGORY: Record<string, string[]> = { Trabajo: ["General"] };
-
 export function useHubTracker() {
-  // Estado inicial fijo: igual en servidor y en el primer render del cliente (evita hydration mismatch).
-  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
-  const [currentCategory, setCurrentCategory] = useState("");
-  const [currentTask, setCurrentTask] = useState("");
+  const [categories, setCategories] = useState<CategoryWithTasks[]>([]);
+  const [logs, setLogs] = useState<TimeLogEntry[]>([]);
+  const [currentCategoryId, setCurrentCategoryId] = useState<number | null>(null);
+  const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
   const [newCatInput, setNewCatInput] = useState("");
   const [newTaskInput, setNewTaskInput] = useState("");
-  const [tasksByCategory, setTasksByCategory] = useState<Record<string, string[]>>(DEFAULT_TASKS_BY_CATEGORY);
-  const [logs, setLogs] = useState<Log[]>([]);
   const [isTracking, setIsTracking] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
-
-  // Tras el montaje (solo en cliente), cargar desde localStorage.
-  useEffect(() => {
-    try {
-      const savedCats = localStorage.getItem(STORAGE_KEYS.categories);
-      if (savedCats) setCategories(JSON.parse(savedCats) as string[]);
-
-      const savedTasks = localStorage.getItem(STORAGE_KEYS.tasksByCategory);
-      if (savedTasks) setTasksByCategory(JSON.parse(savedTasks) as Record<string, string[]>);
-
-      const savedLogs = localStorage.getItem(STORAGE_KEYS.logs);
-      if (savedLogs) {
-        const parsed = JSON.parse(savedLogs) as (Log & { task?: string })[];
-        const migrated = parsed.map((l) => ({
-          ...l,
-          task: l.task != null && l.task !== "" ? l.task : "Sin tarea",
-        }));
-        const needsSave = parsed.some((l) => l.task == null || l.task === "");
-        setLogs(migrated);
-        if (needsSave) localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(migrated));
-      }
-
-      const savedStart = localStorage.getItem(STORAGE_KEYS.start);
-      const start = savedStart ? parseInt(savedStart, 10) : null;
-      setStartTime(start);
-      setIsTracking(start != null);
-
-      if (start != null) {
-        const cat = localStorage.getItem(STORAGE_KEYS.currentCat) || "";
-        const task = localStorage.getItem(STORAGE_KEYS.currentTask) || "";
-        setCurrentCategory(cat);
-        setCurrentTask(task);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
+  const [loading, setLoading] = useState(true);
 
   const { elapsedTime } = useAlignedTimer({ isTracking, startTime });
 
+  // Cargar datos iniciales desde la API
+  const fetchData = useCallback(async () => {
+    try {
+      const [catsRes, logsRes] = await Promise.all([
+        fetch("/api/categories"),
+        fetch("/api/logs"),
+      ]);
+      if (catsRes.ok) {
+        const cats: CategoryWithTasks[] = await catsRes.json();
+        setCategories(cats);
+        if (cats.length > 0 && currentCategoryId == null) {
+          setCurrentCategoryId(cats[0].id);
+          if (cats[0].tasks.length > 0) setCurrentTaskId(cats[0].tasks[0].id);
+        }
+      }
+      if (logsRes.ok) {
+        setLogs(await logsRes.json());
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const currentCategory = categories.find((c) => c.id === currentCategoryId) ?? null;
+  const tasksForCategory = currentCategory?.tasks ?? [];
+
+  // Totales calculados
   const totals = useMemo(() => {
-    return logs.reduce((acc: Record<string, number>, curr) => {
-      acc[curr.cat] = (acc[curr.cat] || 0) + curr.hrs;
+    return logs.reduce((acc: Record<string, number>, log) => {
+      const cat = log.category.name;
+      acc[cat] = (acc[cat] || 0) + log.hours;
       return acc;
     }, {});
   }, [logs]);
@@ -68,138 +56,141 @@ export function useHubTracker() {
   const totalsByTask = useMemo(() => {
     const acc: Record<string, Record<string, number>> = {};
     for (const log of logs) {
-      if (!acc[log.cat]) acc[log.cat] = {};
-      acc[log.cat][log.task] = (acc[log.cat][log.task] || 0) + log.hrs;
+      const cat = log.category.name;
+      const task = log.task.name;
+      if (!acc[cat]) acc[cat] = {};
+      acc[cat][task] = (acc[cat][task] || 0) + log.hours;
     }
     return acc;
   }, [logs]);
 
   // --- Acciones ---
-  const stopTracker = () => {
-    setIsTracking(false);
-    setStartTime(null);
-    localStorage.removeItem(STORAGE_KEYS.start);
-    localStorage.removeItem(STORAGE_KEYS.currentCat);
-    localStorage.removeItem(STORAGE_KEYS.currentTask);
+
+  const handleCategoryChange = (catId: number) => {
+    setCurrentCategoryId(catId);
+    const cat = categories.find((c) => c.id === catId);
+    setCurrentTaskId(cat?.tasks[0]?.id ?? null);
   };
 
-  const saveEntry = (cat: string, task: string, hrs: number) => {
-    const taskTrimmed = task.trim() || (tasksByCategory[cat]?.[0]) || "Sin tarea";
-    const newLog: Log = {
-      id: Date.now(),
-      cat,
-      task: taskTrimmed,
-      hrs: parseFloat(hrs.toFixed(2)),
-      date: new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "short" }),
-    };
-    const updatedLogs = [newLog, ...logs];
-    setLogs(updatedLogs);
-    localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(updatedLogs));
+  const handleToggleTimer = async () => {
+    if (!isTracking) {
+      const catId = currentCategoryId ?? categories[0]?.id;
+      const taskId = currentTaskId ?? currentCategory?.tasks[0]?.id;
+      if (!catId || !taskId) return;
+      setStartTime(Date.now());
+      setIsTracking(true);
+      setCurrentCategoryId(catId);
+      setCurrentTaskId(taskId);
+    } else {
+      const hours = msToHours(elapsedTime);
+      setIsTracking(false);
+      setStartTime(null);
 
-    if (taskTrimmed !== "Sin tarea") {
-      const tasksForCat = tasksByCategory[cat] ?? [];
-      if (!tasksForCat.includes(taskTrimmed)) {
-        const updated = { ...tasksByCategory, [cat]: [...tasksForCat, taskTrimmed] };
-        setTasksByCategory(updated);
-        localStorage.setItem(STORAGE_KEYS.tasksByCategory, JSON.stringify(updated));
+      const res = await fetch("/api/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hours, categoryId: currentCategoryId, taskId: currentTaskId }),
+      });
+      if (res.ok) {
+        const newLog: TimeLogEntry = await res.json();
+        setLogs((prev) => [newLog, ...prev]);
       }
     }
   };
 
-  const handleToggleTimer = () => {
-    if (!isTracking) {
-      const now = Date.now();
-      const cat = currentCategory || categories[0];
-      const task = currentTask.trim() || (tasksByCategory[cat]?.[0]) || "Sin tarea";
-      setStartTime(now);
-      setIsTracking(true);
-      setCurrentCategory(cat);
-      setCurrentTask(task);
-      localStorage.setItem(STORAGE_KEYS.start, now.toString());
-      localStorage.setItem(STORAGE_KEYS.currentCat, cat);
-      localStorage.setItem(STORAGE_KEYS.currentTask, task);
-    } else {
-      const diffHours = msToHours(elapsedTime);
-      const task = currentTask.trim() || (tasksByCategory[currentCategory]?.[0]) || "Sin tarea";
-      saveEntry(currentCategory, task, diffHours);
-      stopTracker();
-    }
-  };
+  const addCategory = async () => {
+    const name = newCatInput.trim();
+    if (!name) return;
 
-  const addCategory = () => {
-    if (!newCatInput.trim()) return;
-    if (!categories.includes(newCatInput)) {
-      const updated = [...categories, newCatInput];
-      setCategories(updated);
-      localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(updated));
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      const cat: CategoryWithTasks = await res.json();
+      setCategories((prev) => [...prev, cat]);
+      setCurrentCategoryId(cat.id);
+      setCurrentTaskId(null);
     }
     setNewCatInput("");
   };
 
-  const addTask = (category: string) => {
-    const trimmed = newTaskInput.trim();
-    if (!trimmed) return;
-    const tasksForCat = tasksByCategory[category] ?? [];
-    if (!tasksForCat.includes(trimmed)) {
-      const updated = { ...tasksByCategory, [category]: [...tasksForCat, trimmed] };
-      setTasksByCategory(updated);
-      localStorage.setItem(STORAGE_KEYS.tasksByCategory, JSON.stringify(updated));
+  const addTask = async () => {
+    const name = newTaskInput.trim();
+    if (!name || !currentCategoryId) return;
+
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, categoryId: currentCategoryId }),
+    });
+    if (res.ok) {
+      const task = await res.json();
+      setCategories((prev) =>
+        prev.map((c) =>
+          c.id === currentCategoryId ? { ...c, tasks: [...c.tasks, task] } : c
+        )
+      );
+      setCurrentTaskId(task.id);
     }
-    setCurrentTask(trimmed);
     setNewTaskInput("");
   };
 
-  const deleteEntry = (id: number) => {
-    const updated = logs.filter((l) => l.id !== id);
-    setLogs(updated);
-    localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(updated));
+  const deleteEntry = async (id: number) => {
+    const res = await fetch(`/api/logs/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setLogs((prev) => prev.filter((l) => l.id !== id));
+    }
   };
 
-  const editCategoryName = (oldName: string) => {
-    const newName = prompt(`Cambiar nombre de "${oldName}" a:`, oldName);
-    if (!newName || newName.trim() === "" || newName === oldName) return;
+  const editCategoryName = async (catName: string) => {
+    const newName = prompt(`Cambiar nombre de "${catName}" a:`, catName);
+    if (!newName || newName.trim() === "" || newName === catName) return;
 
-    const trimmed = newName.trim();
-    const updatedCats = categories.map((c) => (c === oldName ? trimmed : c));
-    const updatedLogs = logs.map((l) => (l.cat === oldName ? { ...l, cat: trimmed } : l));
+    const cat = categories.find((c) => c.name === catName);
+    if (!cat) return;
 
-    const updatedTasks: Record<string, string[]> = {};
-    for (const [cat, tasks] of Object.entries(tasksByCategory)) {
-      updatedTasks[cat === oldName ? trimmed : cat] = tasks;
+    const res = await fetch(`/api/categories/${cat.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+    if (res.ok) {
+      setCategories((prev) =>
+        prev.map((c) => (c.id === cat.id ? { ...c, name: newName.trim() } : c))
+      );
+      // Actualizar nombres en logs locales
+      setLogs((prev) =>
+        prev.map((l) =>
+          l.categoryId === cat.id ? { ...l, category: { name: newName.trim() } } : l
+        )
+      );
     }
-    setCategories(updatedCats);
-    setLogs(updatedLogs);
-    setTasksByCategory(updatedTasks);
-    localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(updatedCats));
-    localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(updatedLogs));
-    localStorage.setItem(STORAGE_KEYS.tasksByCategory, JSON.stringify(updatedTasks));
   };
 
   return {
     categories,
-    setCategories,
-    currentCategory,
-    setCurrentCategory,
-    currentTask,
-    setCurrentTask,
-    tasksByCategory,
+    currentCategoryId,
+    currentTaskId,
+    tasksForCategory,
     newCatInput,
     setNewCatInput,
     newTaskInput,
     setNewTaskInput,
     logs,
-    setLogs,
     isTracking,
     startTime,
     elapsedTime,
     totals,
     totalsByTask,
+    loading,
+    handleCategoryChange,
+    setCurrentTaskId,
     handleToggleTimer,
-    stopTracker,
     addCategory,
     addTask,
     deleteEntry,
     editCategoryName,
   } as const;
 }
-

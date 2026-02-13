@@ -17,11 +17,9 @@ export default function HubTracker() {
   const [showAddTask, setShowAddTask] = useState(false);
   const {
     categories,
-    currentCategory,
-    setCurrentCategory,
-    currentTask,
-    setCurrentTask,
-    tasksByCategory,
+    currentCategoryId,
+    currentTaskId,
+    tasksForCategory,
     newCatInput,
     setNewCatInput,
     newTaskInput,
@@ -31,6 +29,9 @@ export default function HubTracker() {
     elapsedTime,
     totals,
     totalsByTask,
+    loading,
+    handleCategoryChange,
+    setCurrentTaskId,
     handleToggleTimer,
     addCategory,
     addTask,
@@ -38,13 +39,18 @@ export default function HubTracker() {
     editCategoryName,
   } = useHubTracker();
 
-  const selectValue = currentCategory || (categories.length > 0 ? categories[0] : "");
-  const tasksForCategory = (selectValue && tasksByCategory[selectValue]) || [];
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#f8fafc] p-5 flex justify-center items-center">
+        <p className="text-slate-500">Cargando...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#f8fafc] p-5 flex justify-center items-start">
       <div className="w-full max-w-md bg-white p-8 rounded-[20px] shadow-sm border border-slate-100">
-        
+
         {/* Timer Display */}
         <TimerDisplay timeText={formatTime(elapsedTime)} />
 
@@ -54,9 +60,9 @@ export default function HubTracker() {
             <div className="flex-1">
               <CategorySelect
                 disabled={isTracking}
-                value={selectValue}
+                value={currentCategoryId}
                 categories={categories}
-                onChange={setCurrentCategory}
+                onChange={handleCategoryChange}
               />
             </div>
             <button
@@ -90,14 +96,14 @@ export default function HubTracker() {
               <TaskSelect
                 disabled={isTracking}
                 tasksForCategory={tasksForCategory}
-                value={currentTask}
-                onChange={setCurrentTask}
+                value={currentTaskId}
+                onChange={setCurrentTaskId}
               />
             </div>
             <button
               type="button"
               onClick={() => setShowAddTask(true)}
-              disabled={isTracking || !selectValue}
+              disabled={isTracking || !currentCategoryId}
               className="shrink-0 px-4 py-3 bg-slate-100 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               + Tarea
@@ -110,7 +116,7 @@ export default function HubTracker() {
               value={newTaskInput}
               onChange={setNewTaskInput}
               onAdd={() => {
-                addTask(selectValue);
+                addTask();
                 setShowAddTask(false);
               }}
               onCancel={() => {
@@ -127,7 +133,7 @@ export default function HubTracker() {
         {/* Resumen Acumulado */}
         <TotalsSummary totals={totals} totalsByTask={totalsByTask} onEditCategoryName={editCategoryName} />
 
-{/* Historial */}
+        {/* Historial */}
         <RecentLogs logs={logs} onDelete={deleteEntry} />
 
       </div>

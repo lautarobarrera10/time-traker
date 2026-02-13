@@ -1,8 +1,10 @@
+import type { CategoryWithTasks } from "@/lib/types";
+
 export function CategorySelect(props: {
   disabled: boolean;
-  value: string;
-  categories: string[];
-  onChange: (next: string) => void;
+  value: number | null;
+  categories: CategoryWithTasks[];
+  onChange: (id: number) => void;
 }) {
   const { disabled, value, categories, onChange } = props;
 
@@ -13,17 +15,16 @@ export function CategorySelect(props: {
       </label>
       <select
         disabled={disabled}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={value ?? ""}
+        onChange={(e) => onChange(parseInt(e.target.value))}
         className="w-full p-3 rounded-xl border border-slate-200 text-sm text-black outline-none bg-white disabled:bg-slate-50 cursor-pointer"
       >
         {categories.map((c) => (
-          <option key={c} value={c}>
-            {c}
+          <option key={c.id} value={c.id}>
+            {c.name}
           </option>
         ))}
       </select>
     </div>
   );
 }
-
